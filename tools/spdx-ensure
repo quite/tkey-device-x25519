@@ -22,6 +22,7 @@ missingok_files=(
 LICENSE
 Makefile
 README.md
+RELEASE.md
 signer/app.bin.sha512
 )
 
