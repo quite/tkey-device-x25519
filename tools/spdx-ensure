@@ -18,7 +18,6 @@ missingok_files=(
 .clang-format
 .editorconfig
 .gitignore
-.golangci.yml
 LICENSE
 Makefile
 README.md
