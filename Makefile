@@ -64,4 +64,4 @@ checkfmt:
 
 .PHONY: podman
 podman:
-	podman run --rm --mount type=bind,source=$(CURDIR),target=/src --mount type=bind,source=$(CURDIR)/../tkey-libs,target=/tkey-libs -w /src -it ghcr.io/tillitis/tkey-builder:2 make -j
+	podman run --rm --mount type=bind,source=$(CURDIR),target=/src --mount type=bind,source=$(LIBDIR),target=/tkey-libs -w /src -it ghcr.io/tillitis/tkey-builder:2 make -j
