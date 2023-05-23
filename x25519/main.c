@@ -115,7 +115,6 @@ int main(void)
 			}
 
 			uint8_t secret[32];
-
 			// output, domain, user_secret, require_touch
 			make_secret(secret, &cmd[1], &cmd[1 + DOMAIN_LEN],
 				    cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]);
@@ -141,7 +140,8 @@ int main(void)
 				    cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]);
 
 			if (cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]) {
-				wait_touch_ledflash(LED_GREEN, 350000);
+				wait_touch_ledflash(LED_GREEN | LED_BLUE,
+						    350000);
 			}
 
 			rsp[0] = STATUS_OK;
