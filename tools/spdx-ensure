@@ -21,8 +21,9 @@ missingok_files=(
 LICENSE
 Makefile
 README.md
-RELEASE.md
-signer/app.bin.sha512
+go.mod
+go.sum
+x25519/app.bin.sha512
 )
 
 is_missingok() {

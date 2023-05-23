@@ -1,4 +1,5 @@
 // Copyright (C) 2022, 2023 - Tillitis AB
+// Copyright (C) 2023 - Daniel Lublin
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include "app_proto.h"
@@ -22,17 +23,7 @@ void appreply(struct frame_header hdr, enum appcmd rspcode, void *buf)
 		nbytes = 128;
 		break;
 
-	case APP_RSP_SET_SIZE:
-		len = LEN_4;
-		nbytes = 4;
-		break;
-
-	case APP_RSP_SIGN_DATA:
-		len = LEN_4;
-		nbytes = 4;
-		break;
-
-	case APP_RSP_GET_SIG:
+	case APP_RSP_COMPUTE_SHARED:
 		len = LEN_128;
 		nbytes = 128;
 		break;

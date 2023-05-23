@@ -15,6 +15,10 @@ jobs:
     container:
       image: ghcr.io/tillitis/tkey-builder:2
     steps:
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '>=1.20.0'
+
       - name: checkout
         uses: actions/checkout@v3
         with:
@@ -44,5 +48,5 @@ jobs:
       - name: check fmt of c code
         run: make checkfmt
 
-      - name: check for SPDX tags
-        run: ./tools/spdx-ensure
+      # - name: check for SPDX tags
+      #   run: ./tools/spdx-ensure

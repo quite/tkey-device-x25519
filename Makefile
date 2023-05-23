@@ -15,9 +15,6 @@ CFLAGS = -target riscv32-unknown-none-elf -march=rv32iczmmul -mabi=ilp32 -mcmode
    -Wall -Werror=implicit-function-declaration \
    -I $(INCLUDE) -I $(LIBDIR)  \
    -DNODEBUG
-ifneq ($(TKEY_SIGNER_APP_NO_TOUCH),)
-CFLAGS := $(CFLAGS) -DTKEY_SIGNER_APP_NO_TOUCH
-endif
 
 AS = clang
 ASFLAGS = -target riscv32-unknown-none-elf -march=rv32iczmmul -mabi=ilp32 -mcmodel=medany -mno-relax
@@ -28,7 +25,7 @@ RM=/bin/rm
 
 
 .PHONY: all
-all: signer/app.bin check-signer-hash
+all: testx25519 x25519/app.bin check-x25519-hash
 
 # Turn elf into bin for device
 %.bin: %.elf
@@ -38,21 +35,26 @@ all: signer/app.bin check-signer-hash
 show-%-hash: %/app.bin
 	cd $$(dirname $^) && sha512sum app.bin
 
-check-signer-hash: signer/app.bin
-	cd signer && sha512sum -c app.bin.sha512
+check-x25519-hash: x25519/app.bin
+	cd x25519 && sha512sum -c app.bin.sha512
 
-# Simple ed25519 signer app
-SIGNEROBJS=signer/main.o signer/app_proto.o
-signer/app.elf: $(SIGNEROBJS)
-	$(CC) $(CFLAGS) $(SIGNEROBJS) $(LDFLAGS) -L $(LIBDIR)/monocypher -lmonocypher -I $(LIBDIR) -o $@
-$(SIGNEROBJS): $(INCLUDE)/tk1_mem.h signer/app_proto.h
+X25519OBJS=x25519/main.o x25519/app_proto.o
+x25519/app.elf: $(X25519OBJS)
+	$(CC) $(CFLAGS) $(X25519OBJS) $(LDFLAGS) -L $(LIBDIR)/monocypher -lmonocypher -I $(LIBDIR) -o $@
+$(X25519OBJS): $(INCLUDE)/tk1_mem.h x25519/app_proto.h
+
+# .PHONY to let go-build handle deps and rebuilds
+.PHONY: testx25519
+testx25519: x25519/app.bin
+	cp x25519/app.bin ./cmd/testx25519/
+	go build ./cmd/testx25519
 
 .PHONY: clean
 clean:
-	$(RM) -f signer/app.bin signer/app.elf $(SIGNEROBJS)
+	$(RM) -f x25519/app.bin x25519/app.elf $(X25519OBJS) testx25519
 
 # Uses ../.clang-format
-FMTFILES=signer/*.[ch]
+FMTFILES=x25519/*.[ch]
 
 .PHONY: fmt
 fmt:
