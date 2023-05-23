@@ -100,7 +100,8 @@ func main() {
 
 	goX25519 := ecdh.X25519()
 
-	hostPriv, _ := goX25519.GenerateKey(rand.Reader)
+	hostPriv, err := goX25519.GenerateKey(rand.Reader)
+	panicErr(err)
 	hostPub := hostPriv.PublicKey()
 	fmt.Printf("hostPub: %0x\n", hostPub.Bytes())
 
@@ -108,7 +109,8 @@ func main() {
 	var userSecret [16]byte
 	// TODO these
 	copy(domain[:], []byte("age..."))
-	_, _ = rand.Read(userSecret[:])
+	_, err = rand.Read(userSecret[:])
+	panicErr(err)
 
 	requireTouch := false
 
