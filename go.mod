@@ -3,7 +3,7 @@ module github.com/quite/tkey-device-x25519
 go 1.20
 
 require (
-	github.com/quite/tkeyx25519 v0.0.0-20230523044912-0763d2a7d2dd
+	github.com/quite/tkeyx25519 v0.0.0-20230523085916-2f6bba024612
 	github.com/spf13/pflag v1.0.5
 	github.com/tillitis/tkeyclient v0.0.0-20230515175551-f6bb10fe1c9d
 	go.bug.st/serial v1.5.0

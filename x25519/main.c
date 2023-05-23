@@ -11,6 +11,7 @@
 // clang-format off
 static volatile uint32_t *cdi =   (volatile uint32_t *)TK1_MMIO_TK1_CDI_FIRST;
 static volatile uint32_t *led =   (volatile uint32_t *)TK1_MMIO_TK1_LED;
+static volatile uint32_t *touch = (volatile uint32_t *)TK1_MMIO_TOUCH_STATUS;
 
 #define LED_BLACK 0
 #define LED_RED   (1 << TK1_MMIO_TK1_LED_R_BIT)
@@ -22,26 +23,45 @@ const uint8_t app_name0[4] = "x255";
 const uint8_t app_name1[4] = "19  ";
 const uint32_t app_version = 0x00000001;
 
-// TODO (optionally) require touch?
-
 // lengths of parameters from client on host
 #define DOMAIN_LEN 78
 #define USER_SECRET_LEN 16
 
 // 8 words * 4 bytes == 32 bytes
 #define CDI_WORDS 8
-// total 126 bytes
-#define SECRET_INPUT_LEN DOMAIN_LEN + USER_SECRET_LEN + CDI_WORDS * 4
+// total 127 bytes
+#define SECRET_INPUT_LEN DOMAIN_LEN + USER_SECRET_LEN + CDI_WORDS * 4 + 1
 
-void make_secret(uint8_t *output, uint8_t *domain, uint8_t *user_secret)
+void make_secret(uint8_t *output, uint8_t *domain, uint8_t *user_secret,
+		 uint8_t require_touch)
 {
 	uint8_t input[SECRET_INPUT_LEN];
 	memcpy(input, domain, DOMAIN_LEN);
-	memcpy(input + DOMAIN_LEN, user_secret, USER_SECRET_LEN);
-	wordcpy(input + DOMAIN_LEN + USER_SECRET_LEN, (void *)cdi, CDI_WORDS);
+	memcpy(&input[DOMAIN_LEN], user_secret, USER_SECRET_LEN);
+	input[DOMAIN_LEN + USER_SECRET_LEN] = require_touch;
+	wordcpy(&input[DOMAIN_LEN + USER_SECRET_LEN + 1], (void *)cdi,
+		CDI_WORDS);
 
 	blake2s_ctx b2s_ctx;
 	blake2s(output, 32, NULL, 0, input, SECRET_INPUT_LEN, &b2s_ctx);
+}
+
+void wait_touch_ledflash(int ledvalue, int loopcount)
+{
+	int led_on = 0;
+	// first a write, to ensure no stray touch
+	*touch = 0;
+	for (;;) {
+		*led = led_on ? ledvalue : 0;
+		for (int i = 0; i < loopcount; i++) {
+			if (*touch & (1 << TK1_MMIO_TOUCH_STATUS_EVENT_BIT)) {
+				// write, confirming we read the touch event
+				*touch = 0;
+				return;
+			}
+		}
+		led_on = !led_on;
+	}
 }
 
 int main(void)
@@ -95,12 +115,13 @@ int main(void)
 			}
 
 			uint8_t secret[32];
-			// output, domain, user_secret
-			make_secret(secret, cmd + 1, cmd + 1 + DOMAIN_LEN);
+
+			// output, domain, user_secret, require_touch
+			make_secret(secret, &cmd[1], &cmd[1 + DOMAIN_LEN],
+				    cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]);
 
 			rsp[0] = STATUS_OK;
-			// output, secret
-			crypto_x25519_public_key(rsp + 1, secret);
+			crypto_x25519_public_key(&rsp[1], secret);
 
 			appreply(hdr, APP_RSP_GET_PUBKEY, rsp);
 			break;
@@ -115,13 +136,19 @@ int main(void)
 			}
 
 			uint8_t secret[32];
-			// output, domain, user_secret
-			make_secret(secret, cmd + 1, cmd + 1 + DOMAIN_LEN);
+			// output, domain, user_secret, require_touch
+			make_secret(secret, &cmd[1], &cmd[1 + DOMAIN_LEN],
+				    cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]);
+
+			if (cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]) {
+				wait_touch_ledflash(LED_GREEN, 350000);
+			}
 
 			rsp[0] = STATUS_OK;
 			// output, secret, their_pubkey
-			crypto_x25519(rsp + 1, secret,
-				      cmd + 1 + DOMAIN_LEN + USER_SECRET_LEN);
+			crypto_x25519(
+			    &rsp[1], secret,
+			    &cmd[1 + DOMAIN_LEN + USER_SECRET_LEN + 1]);
 
 			appreply(hdr, APP_RSP_COMPUTE_SHARED, rsp);
 			break;

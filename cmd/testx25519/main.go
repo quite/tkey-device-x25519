@@ -110,7 +110,9 @@ func main() {
 	copy(domain[:], []byte("age..."))
 	_, _ = rand.Read(userSecret[:])
 
-	tkeyPubBytes, err := tkeyX25519.GetPubKey(domain, userSecret)
+	requireTouch := false
+
+	tkeyPubBytes, err := tkeyX25519.GetPubKey(domain, userSecret, requireTouch)
 	panicErr(err)
 	tkeyPub, err := goX25519.NewPublicKey(tkeyPubBytes)
 	panicErr(err)
@@ -120,7 +122,7 @@ func main() {
 	panicErr(err)
 	fmt.Printf("hostShared: %0x\n", hostShared)
 
-	tkeyShared, err := tkeyX25519.ComputeShared(domain, userSecret, [32]byte(hostPub.Bytes()))
+	tkeyShared, err := tkeyX25519.ComputeShared(domain, userSecret, requireTouch, [32]byte(hostPub.Bytes()))
 	panicErr(err)
 	fmt.Printf("tkeyShared: %0x\n", tkeyShared)
 
