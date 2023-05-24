@@ -35,12 +35,16 @@ const uint32_t app_version = 0x00000001;
 void make_secret(uint8_t *output, uint8_t *domain, uint8_t *user_secret,
 		 uint8_t require_touch)
 {
-	uint8_t input[SECRET_INPUT_LEN];
+	uint8_t input[SECRET_INPUT_LEN] = {0};
+	uint32_t local_cdi[CDI_WORDS] = {0};
+
 	memcpy(input, domain, DOMAIN_LEN);
 	memcpy(&input[DOMAIN_LEN], user_secret, USER_SECRET_LEN);
 	input[DOMAIN_LEN + USER_SECRET_LEN] = require_touch;
-	wordcpy(&input[DOMAIN_LEN + USER_SECRET_LEN + 1], (void *)cdi,
-		CDI_WORDS);
+
+	wordcpy(local_cdi, (void *)cdi, CDI_WORDS);
+	memcpy(&input[DOMAIN_LEN + USER_SECRET_LEN + 1], local_cdi,
+	       CDI_WORDS * 4);
 
 	blake2s_ctx b2s_ctx;
 	blake2s(output, 32, NULL, 0, input, SECRET_INPUT_LEN, &b2s_ctx);
@@ -114,7 +118,7 @@ int main(void)
 				break;
 			}
 
-			uint8_t secret[32];
+			uint8_t secret[32] = {0};
 			// output, domain, user_secret, require_touch
 			make_secret(secret, &cmd[1], &cmd[1 + DOMAIN_LEN],
 				    cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]);
@@ -134,7 +138,7 @@ int main(void)
 				break;
 			}
 
-			uint8_t secret[32];
+			uint8_t secret[32] = {0};
 			// output, domain, user_secret, require_touch
 			make_secret(secret, &cmd[1], &cmd[1 + DOMAIN_LEN],
 				    cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]);
