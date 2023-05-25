@@ -35,3 +35,7 @@ single bit changes in the app.bin that will run on the TKey (for
 example due to a newer llvm), then the identity (private/public key)
 of it will change. `x25519/app.bin.sha512` contains the currently
 expected hash of the device app binary.
+
+There are some
+[tools](https://github.com/quite/age-plugin-tkey/tree/main/contrib) in
+the age-plugin-tkey repository for doing that.
