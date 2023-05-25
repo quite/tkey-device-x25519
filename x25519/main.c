@@ -26,11 +26,13 @@ const uint32_t app_version = 0x00000001;
 // lengths of parameters from client on host
 #define DOMAIN_LEN 78
 #define USER_SECRET_LEN 16
+#define REQUIRE_TOUCH_LEN 1
 
 // 8 words * 4 bytes == 32 bytes
 #define CDI_WORDS 8
 // total 127 bytes
-#define SECRET_INPUT_LEN DOMAIN_LEN + USER_SECRET_LEN + CDI_WORDS * 4 + 1
+#define SECRET_INPUT_LEN                                                       \
+	DOMAIN_LEN + USER_SECRET_LEN + REQUIRE_TOUCH_LEN + CDI_WORDS * 4
 
 void make_secret(uint8_t *output, uint8_t *domain, uint8_t *user_secret,
 		 uint8_t require_touch)
@@ -39,12 +41,12 @@ void make_secret(uint8_t *output, uint8_t *domain, uint8_t *user_secret,
 	uint32_t local_cdi[CDI_WORDS] = {0};
 
 	memcpy(input, domain, DOMAIN_LEN);
-	memcpy(&input[DOMAIN_LEN], user_secret, USER_SECRET_LEN);
+	memcpy(input + DOMAIN_LEN, user_secret, USER_SECRET_LEN);
 	input[DOMAIN_LEN + USER_SECRET_LEN] = require_touch;
 
 	wordcpy(local_cdi, (void *)cdi, CDI_WORDS);
-	memcpy(&input[DOMAIN_LEN + USER_SECRET_LEN + 1], local_cdi,
-	       CDI_WORDS * 4);
+	memcpy(input + DOMAIN_LEN + USER_SECRET_LEN + REQUIRE_TOUCH_LEN,
+	       local_cdi, CDI_WORDS * 4);
 
 	blake2s_ctx b2s_ctx;
 	blake2s(output, 32, NULL, 0, input, SECRET_INPUT_LEN, &b2s_ctx);
@@ -117,14 +119,15 @@ int main(void)
 				appreply(hdr, APP_RSP_GET_PUBKEY, rsp);
 				break;
 			}
+			uint8_t *data = cmd + 1;
 
 			uint8_t secret[32] = {0};
 			// output, domain, user_secret, require_touch
-			make_secret(secret, &cmd[1], &cmd[1 + DOMAIN_LEN],
-				    cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]);
+			make_secret(secret, data, data + DOMAIN_LEN,
+				    data[DOMAIN_LEN + USER_SECRET_LEN]);
 
 			rsp[0] = STATUS_OK;
-			crypto_x25519_public_key(&rsp[1], secret);
+			crypto_x25519_public_key(rsp + 1, secret);
 
 			appreply(hdr, APP_RSP_GET_PUBKEY, rsp);
 			break;
@@ -137,22 +140,23 @@ int main(void)
 				appreply(hdr, APP_RSP_COMPUTE_SHARED, rsp);
 				break;
 			}
+			uint8_t *data = cmd + 1;
 
 			uint8_t secret[32] = {0};
 			// output, domain, user_secret, require_touch
-			make_secret(secret, &cmd[1], &cmd[1 + DOMAIN_LEN],
-				    cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]);
+			make_secret(secret, data, data + DOMAIN_LEN,
+				    data[DOMAIN_LEN + USER_SECRET_LEN]);
 
-			if (cmd[1 + DOMAIN_LEN + USER_SECRET_LEN]) {
+			if (data[DOMAIN_LEN + USER_SECRET_LEN]) {
 				wait_touch_ledflash(LED_GREEN | LED_BLUE,
 						    350000);
 			}
 
 			rsp[0] = STATUS_OK;
 			// output, secret, their_pubkey
-			crypto_x25519(
-			    &rsp[1], secret,
-			    &cmd[1 + DOMAIN_LEN + USER_SECRET_LEN + 1]);
+			crypto_x25519(rsp + 1, secret,
+				      data + DOMAIN_LEN + USER_SECRET_LEN +
+					  REQUIRE_TOUCH_LEN);
 
 			appreply(hdr, APP_RSP_COMPUTE_SHARED, rsp);
 			break;
