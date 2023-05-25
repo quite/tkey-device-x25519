@@ -9,6 +9,12 @@ the Go package [tkeyx25519](https://github.com/quite/tkeyx255190) to
 communicate with this device app running on the TKey. But this can of
 course also be used by other parties wanting to do ECDH.
 
+Note that this is work in progress. The implementation may change, and
+this will cause a change of identity of a TKey running this device
+app. This would mean that the public/private key no longer is the
+same, and decryption of data encrypted for the previous key pair will
+not be possible.
+
 Based on https://github.com/tillitis/tkey-device-signer
 
 # Building
