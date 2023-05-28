@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/quite/tkey-device-x25519/internal/util"
 	"github.com/quite/tkeyx25519"
@@ -114,8 +115,10 @@ func main() {
 
 	requireTouch := false
 
+	start := time.Now()
 	tkeyPubBytes, err := tkeyX25519.GetPubKey(domain, userSecret, requireTouch)
 	panicErr(err)
+	fmt.Printf("tkeyX25519.GetPubKey took %s\n", time.Since(start))
 	tkeyPub, err := goX25519.NewPublicKey(tkeyPubBytes)
 	panicErr(err)
 	fmt.Printf("tkeyPub: %0x\n", tkeyPub.Bytes())
@@ -124,8 +127,10 @@ func main() {
 	panicErr(err)
 	fmt.Printf("hostShared: %0x\n", hostShared)
 
+	start = time.Now()
 	tkeyShared, err := tkeyX25519.ComputeShared(domain, userSecret, requireTouch, [32]byte(hostPub.Bytes()))
 	panicErr(err)
+	fmt.Printf("tkeyX25519.ComputeShared took %s\n", time.Since(start))
 	fmt.Printf("tkeyShared: %0x\n", tkeyShared)
 
 	if !bytes.Equal(hostShared, tkeyShared) {

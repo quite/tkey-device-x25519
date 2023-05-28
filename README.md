@@ -1,6 +1,6 @@
 
 This TKey device app implements X25519, the ECDH key agreement
-protocol for Curve25519. X25519 impementation is
+protocol for Curve25519. X25519 is implemented using
 [Monocypher](https://monocypher.org/manual/x25519).
 
 It is used by

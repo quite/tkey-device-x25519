@@ -25,7 +25,7 @@ RM=/bin/rm
 
 
 .PHONY: all
-all: testx25519 x25519/app.bin check-x25519-hash
+all: x25519/app.bin check-x25519-hash testx25519
 
 # Turn elf into bin for device
 %.bin: %.elf
