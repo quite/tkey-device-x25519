@@ -23,7 +23,7 @@ void appreply(struct frame_header hdr, enum appcmd rspcode, void *buf)
 		nbytes = 128;
 		break;
 
-	case APP_RSP_COMPUTE_SHARED:
+	case APP_RSP_DO_ECDH:
 		len = LEN_128;
 		nbytes = 128;
 		break;
