@@ -17,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/quite/tkey-device-x25519/internal/util"
 	"github.com/quite/tkeyx25519"
 	"github.com/spf13/pflag"
 	"github.com/tillitis/tkeyclient"
@@ -60,7 +59,7 @@ func main() {
 
 	if devPath == "" {
 		var err error
-		devPath, err = util.DetectSerialPort(true)
+		devPath, err = tkeyclient.DetectSerialPort(true)
 		if err != nil {
 			os.Exit(1)
 		}
