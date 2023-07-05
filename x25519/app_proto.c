@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 #include "app_proto.h"
+#include <qemu_debug.h>
 
 // Send reply frame with response status Not OK (NOK==1), shortest length
 void appreply_nok(struct frame_header hdr)

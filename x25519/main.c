@@ -2,8 +2,10 @@
 // Copyright (C) 2023 - Daniel Lublin
 // SPDX-License-Identifier: GPL-2.0-only
 
+#include <blake2s.h>
 #include <lib.h>
 #include <monocypher/monocypher.h>
+#include <qemu_debug.h>
 #include <tk1_mem.h>
 
 #include "app_proto.h"
