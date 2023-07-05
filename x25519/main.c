@@ -9,13 +9,13 @@
 #include "app_proto.h"
 
 // clang-format off
-static volatile uint32_t *cdi =             (volatile uint32_t *)TK1_MMIO_TK1_CDI_FIRST;
-static volatile uint32_t *led =             (volatile uint32_t *)TK1_MMIO_TK1_LED;
-static volatile uint32_t *touch_status =    (volatile uint32_t *)TK1_MMIO_TOUCH_STATUS;
-static volatile uint32_t *timer_timer =     (volatile uint32_t *)TK1_MMIO_TIMER_TIMER;
-static volatile uint32_t *timer_prescaler = (volatile uint32_t *)TK1_MMIO_TIMER_PRESCALER;
-static volatile uint32_t *timer_status =    (volatile uint32_t *)TK1_MMIO_TIMER_STATUS;
-static volatile uint32_t *timer_ctrl =      (volatile uint32_t *)TK1_MMIO_TIMER_CTRL;
+static volatile uint32_t *const cdi =             (volatile uint32_t *)TK1_MMIO_TK1_CDI_FIRST;
+static volatile uint32_t *const led =             (volatile uint32_t *)TK1_MMIO_TK1_LED;
+static volatile uint32_t *const touch_status =    (volatile uint32_t *)TK1_MMIO_TOUCH_STATUS;
+static volatile uint32_t *const timer_timer =     (volatile uint32_t *)TK1_MMIO_TIMER_TIMER;
+static volatile uint32_t *const timer_prescaler = (volatile uint32_t *)TK1_MMIO_TIMER_PRESCALER;
+static volatile uint32_t *const timer_status =    (volatile uint32_t *)TK1_MMIO_TIMER_STATUS;
+static volatile uint32_t *const timer_ctrl =      (volatile uint32_t *)TK1_MMIO_TIMER_CTRL;
 
 #define LED_BLACK 0
 #define LED_RED   (1 << TK1_MMIO_TK1_LED_R_BIT)
