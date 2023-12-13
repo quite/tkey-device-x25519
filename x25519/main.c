@@ -2,16 +2,27 @@
 // Copyright (C) 2023 - Daniel Lublin
 // SPDX-License-Identifier: GPL-2.0-only
 
-#include <lib.h>
 #include <monocypher/monocypher.h>
-#include <tk1_mem.h>
+#include <tkey/blake2s.h>
+#include <tkey/lib.h>
+#include <tkey/qemu_debug.h>
+#include <tkey/tk1_mem.h>
 
 #include "app_proto.h"
 
 // clang-format off
-static volatile uint32_t *cdi =   (volatile uint32_t *)TK1_MMIO_TK1_CDI_FIRST;
-static volatile uint32_t *led =   (volatile uint32_t *)TK1_MMIO_TK1_LED;
-static volatile uint32_t *touch = (volatile uint32_t *)TK1_MMIO_TOUCH_STATUS;
+static volatile uint32_t *cpu_mon_first =   (volatile uint32_t *)TK1_MMIO_TK1_CPU_MON_FIRST;
+static volatile uint32_t *cpu_mon_last =    (volatile uint32_t *)TK1_MMIO_TK1_CPU_MON_LAST;
+static volatile uint32_t *cpu_mon_ctrl =    (volatile uint32_t *)TK1_MMIO_TK1_CPU_MON_CTRL;
+static volatile uint32_t *app_addr =        (volatile uint32_t *)TK1_MMIO_TK1_APP_ADDR;
+static volatile uint32_t *app_size =        (volatile uint32_t *)TK1_MMIO_TK1_APP_SIZE;
+static volatile uint32_t *const cdi =             (volatile uint32_t *)TK1_MMIO_TK1_CDI_FIRST;
+static volatile uint32_t *const led =             (volatile uint32_t *)TK1_MMIO_TK1_LED;
+static volatile uint32_t *const touch_status =    (volatile uint32_t *)TK1_MMIO_TOUCH_STATUS;
+static volatile uint32_t *const timer_timer =     (volatile uint32_t *)TK1_MMIO_TIMER_TIMER;
+static volatile uint32_t *const timer_prescaler = (volatile uint32_t *)TK1_MMIO_TIMER_PRESCALER;
+static volatile uint32_t *const timer_status =    (volatile uint32_t *)TK1_MMIO_TIMER_STATUS;
+static volatile uint32_t *const timer_ctrl =      (volatile uint32_t *)TK1_MMIO_TIMER_CTRL;
 
 #define LED_BLACK 0
 #define LED_RED   (1 << TK1_MMIO_TK1_LED_R_BIT)
@@ -21,76 +32,120 @@ static volatile uint32_t *touch = (volatile uint32_t *)TK1_MMIO_TOUCH_STATUS;
 
 const uint8_t app_name0[4] = "x255";
 const uint8_t app_name1[4] = "19  ";
-const uint32_t app_version = 0x00000001;
+const uint32_t app_version = 0x00000002;
 
-// lengths of parameters from client on host
-#define DOMAIN_LEN 78
-#define USER_SECRET_LEN 16
-#define REQUIRE_TOUCH_LEN 1
+#define LED_COLOR (LED_RED | LED_GREEN) // yellow
+#define TOUCH_TIMEOUT_SECS 10
 
-// 8 words * 4 bytes == 32 bytes
+#define STATUS_OK 0
+#define STATUS_WRONG_CMDLEN 1
+#define STATUS_TOUCH_TIMEOUT 2
+
 #define CDI_WORDS 8
-// total 127 bytes
+#define CDI_LEN (CDI_WORDS * 4)
+#define DOMAIN_LEN 32
+#define USER_SECRET_LEN 32
+#define REQUIRE_TOUCH_LEN 1
 #define SECRET_INPUT_LEN                                                       \
-	DOMAIN_LEN + USER_SECRET_LEN + REQUIRE_TOUCH_LEN + CDI_WORDS * 4
+	(CDI_LEN + DOMAIN_LEN + USER_SECRET_LEN + REQUIRE_TOUCH_LEN)
+#define SECRET_LEN 32
 
-void make_secret(uint8_t *output, uint8_t *domain, uint8_t *user_secret,
-		 uint8_t require_touch)
+void make_secret(uint8_t secret[SECRET_LEN], const uint8_t domain[DOMAIN_LEN],
+		 const uint8_t user_secret[USER_SECRET_LEN],
+		 const uint8_t require_touch[REQUIRE_TOUCH_LEN])
 {
 	uint8_t input[SECRET_INPUT_LEN] = {0};
 	uint32_t local_cdi[CDI_WORDS] = {0};
 
-	memcpy(input, domain, DOMAIN_LEN);
-	memcpy(input + DOMAIN_LEN, user_secret, USER_SECRET_LEN);
-	input[DOMAIN_LEN + USER_SECRET_LEN] = require_touch;
-
+	// must read out CDI word (32-bit) by word
 	wordcpy(local_cdi, (void *)cdi, CDI_WORDS);
-	memcpy(input + DOMAIN_LEN + USER_SECRET_LEN + REQUIRE_TOUCH_LEN,
-	       local_cdi, CDI_WORDS * 4);
 
-	blake2s_ctx b2s_ctx;
-	blake2s(output, 32, NULL, 0, input, SECRET_INPUT_LEN, &b2s_ctx);
+	uint8_t offset = 0;
+	memcpy(input + offset, local_cdi, CDI_LEN);
+	offset += CDI_LEN;
+	memcpy(input + offset, domain, DOMAIN_LEN);
+	offset += DOMAIN_LEN;
+	memcpy(input + offset, user_secret, USER_SECRET_LEN);
+	offset += USER_SECRET_LEN;
+	memcpy(input + offset, require_touch, REQUIRE_TOUCH_LEN);
+
+	blake2s_ctx b2s_ctx = {0};
+	// Call the shim which in turn calls the blake2s impl that
+	// resides in TKey firmware (see libcommon/lib.c in
+	// tkey-libs). It returns non-zero only if (outlen == 0 ||
+	// outlen > 32 || keylen > 32), which we rightly ignore.
+	//
+	// We're not using keyed hashing; input is the concatenation of our
+	// fixed-length parameters.
+	blake2s(secret, SECRET_LEN, NULL, 0, input, SECRET_INPUT_LEN, &b2s_ctx);
+	memset(input, 0, SECRET_INPUT_LEN);
 }
 
-void wait_touch_ledflash(int ledvalue, int loopcount)
+int wait_touched(void)
 {
-	int led_on = 0;
-	// first a write, to ensure no stray touch
-	*touch = 0;
+	// make sure timer is stopped
+	*timer_ctrl = (1 << TK1_MMIO_TIMER_CTRL_STOP_BIT);
+	// match 18 MHz TKey device clock, giving us timer in seconds
+	*timer_prescaler = 18 * 1000 * 1000;
+	*timer_timer = TOUCH_TIMEOUT_SECS;
+	// start the timer
+	*timer_ctrl = (1 << TK1_MMIO_TIMER_CTRL_START_BIT);
+
+	// first a write, confirming any stray touch
+	*touch_status = 0;
+
+	const int loopcount = 300 * 1000;
+	int led_on = 1;
 	for (;;) {
-		*led = led_on ? ledvalue : 0;
+		led_on = !led_on;
+		*led = led_on ? LED_COLOR : LED_BLACK;
 		for (int i = 0; i < loopcount; i++) {
-			if (*touch & (1 << TK1_MMIO_TOUCH_STATUS_EVENT_BIT)) {
-				// write, confirming we read the touch event
-				*touch = 0;
-				return;
+			if ((*timer_status &
+			     (1 << TK1_MMIO_TIMER_STATUS_RUNNING_BIT)) == 0) {
+				// timed out before touched
+				*led = LED_BLACK;
+				return 0;
+			}
+			if (*touch_status &
+			    (1 << TK1_MMIO_TOUCH_STATUS_EVENT_BIT)) {
+				// confirm we read the touch event
+				*touch_status = 0;
+				*led = LED_BLACK;
+				return 1;
 			}
 		}
-		led_on = !led_on;
 	}
 }
 
 int main(void)
 {
-	struct frame_header hdr; // Used in both directions
-	uint8_t cmd[CMDLEN_MAXBYTES];
-	uint8_t rsp[CMDLEN_MAXBYTES];
-	uint8_t in;
+	uint8_t hdr_byte = 0;
+	struct frame_header hdr = {0};
+	uint8_t cmd[CMDLEN_MAXBYTES] = {0};
+	uint8_t rsp[CMDLEN_MAXBYTES] = {0};
+
+	// stop cpu from executing code on our stack (all RAM above app)
+	*cpu_mon_first = *app_addr + *app_size;
+	*cpu_mon_last = TK1_RAM_BASE + TK1_RAM_SIZE;
+	*cpu_mon_ctrl = 1;
 
 	for (;;) {
-		*led = LED_GREEN | LED_BLUE;
-		in = readbyte();
+		*led = LED_COLOR;
+
+		memset(&hdr, 0, sizeof hdr);
+		memset(cmd, 0, CMDLEN_MAXBYTES);
+		memset(rsp, 0, CMDLEN_MAXBYTES);
+
+		hdr_byte = readbyte();
 		qemu_puts("Read byte: ");
-		qemu_puthex(in);
+		qemu_puthex(hdr_byte);
 		qemu_lf();
 
-		if (parseframe(in, &hdr) == -1) {
+		if (parseframe(hdr_byte, &hdr) == -1) {
 			qemu_puts("Couldn't parse header\n");
 			continue;
 		}
 
-		memset(cmd, 0, CMDLEN_MAXBYTES);
-		// Read app command, blocking
 		read(cmd, hdr.len);
 
 		if (hdr.endpoint == DST_FW) {
@@ -99,7 +154,6 @@ int main(void)
 			continue;
 		}
 
-		// Is it for us?
 		if (hdr.endpoint != DST_SW) {
 			qemu_puts("Message not meant for app. endpoint was 0x");
 			qemu_puthex(hdr.endpoint);
@@ -107,69 +161,79 @@ int main(void)
 			continue;
 		}
 
-		// Reset response buffer
-		memset(rsp, 0, CMDLEN_MAXBYTES);
-
-		// Min length is 1 byte so this should always be here
 		switch (cmd[0]) {
 		case APP_CMD_GET_PUBKEY: {
 			qemu_puts("APP_CMD_GET_PUBKEY\n");
+
 			if (hdr.len != 128) {
-				rsp[0] = STATUS_BAD;
+				rsp[0] = STATUS_WRONG_CMDLEN;
 				appreply(hdr, APP_RSP_GET_PUBKEY, rsp);
 				break;
 			}
-			uint8_t *data = cmd + 1;
 
-			uint8_t secret[32] = {0};
-			// output, domain, user_secret, require_touch
-			make_secret(secret, data, data + DOMAIN_LEN,
-				    data[DOMAIN_LEN + USER_SECRET_LEN]);
+			uint8_t offset = 1; // skip cmd byte
+			uint8_t *domain = cmd + offset;
+			offset += DOMAIN_LEN;
+			uint8_t *user_secret = cmd + offset;
+			offset += USER_SECRET_LEN;
+			uint8_t *require_touch = cmd + offset;
+
+			uint8_t secret[SECRET_LEN] = {0};
+			make_secret(secret, domain, user_secret, require_touch);
 
 			rsp[0] = STATUS_OK;
 			crypto_x25519_public_key(rsp + 1, secret);
-
+			memset(secret, 0, SECRET_LEN);
 			appreply(hdr, APP_RSP_GET_PUBKEY, rsp);
 			break;
 		}
 
-		case APP_CMD_COMPUTE_SHARED: {
-			qemu_puts("APP_CMD_COMPUTE_SHARED\n");
+		case APP_CMD_DO_ECDH: {
+			qemu_puts("APP_CMD_DO_ECDH\n");
+
 			if (hdr.len != 128) {
-				rsp[0] = STATUS_BAD;
-				appreply(hdr, APP_RSP_COMPUTE_SHARED, rsp);
+				rsp[0] = STATUS_WRONG_CMDLEN;
+				appreply(hdr, APP_RSP_DO_ECDH, rsp);
 				break;
 			}
-			uint8_t *data = cmd + 1;
 
-			uint8_t secret[32] = {0};
-			// output, domain, user_secret, require_touch
-			make_secret(secret, data, data + DOMAIN_LEN,
-				    data[DOMAIN_LEN + USER_SECRET_LEN]);
+			uint8_t offset = 1; // skip cmd byte
+			uint8_t *domain = cmd + offset;
+			offset += DOMAIN_LEN;
+			uint8_t *user_secret = cmd + offset;
+			offset += USER_SECRET_LEN;
+			uint8_t *require_touch = cmd + offset;
+			offset += REQUIRE_TOUCH_LEN;
+			uint8_t *their_pubkey = cmd + offset;
 
-			if (data[DOMAIN_LEN + USER_SECRET_LEN]) {
-				wait_touch_ledflash(LED_GREEN | LED_BLUE,
-						    350000);
+			if (*require_touch && (wait_touched() == 0)) {
+				rsp[0] = STATUS_TOUCH_TIMEOUT;
+				appreply(hdr, APP_RSP_DO_ECDH, rsp);
+				break;
 			}
 
-			rsp[0] = STATUS_OK;
-			// output, secret, their_pubkey
-			crypto_x25519(rsp + 1, secret,
-				      data + DOMAIN_LEN + USER_SECRET_LEN +
-					  REQUIRE_TOUCH_LEN);
+			uint8_t secret[SECRET_LEN] = {0};
+			make_secret(secret, domain, user_secret, require_touch);
 
-			appreply(hdr, APP_RSP_COMPUTE_SHARED, rsp);
+			rsp[0] = STATUS_OK;
+			crypto_x25519(rsp + 1, secret, their_pubkey);
+			memset(secret, 0, SECRET_LEN);
+			appreply(hdr, APP_RSP_DO_ECDH, rsp);
 			break;
 		}
 
 		case APP_CMD_GET_NAMEVERSION: {
 			qemu_puts("APP_CMD_GET_NAMEVERSION\n");
-			// only zeroes if unexpected cmdlen bytelen
-			if (hdr.len == 1) {
-				memcpy(rsp, app_name0, 4);
-				memcpy(rsp + 4, app_name1, 4);
-				memcpy(rsp + 8, &app_version, 4);
+
+			if (hdr.len != 1) {
+				// returning all zeroes if wrong cmdlen
+				appreply(hdr, APP_RSP_GET_NAMEVERSION, rsp);
+				break;
 			}
+
+			memcpy(rsp + 0, app_name0, 4);
+			memcpy(rsp + 4, app_name1, 4);
+			memcpy(rsp + 8, &app_version, 4);
 			appreply(hdr, APP_RSP_GET_NAMEVERSION, rsp);
 			break;
 		}

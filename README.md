@@ -24,7 +24,7 @@ dependency in a sibling directory, like this:
 
 ```
 git -C .. clone https://github.com/tillitis/tkey-libs
-git -C ../tkey-libs checkout v0.0.1
+git -C ../tkey-libs checkout v0.0.2
 make -C ../tkey-libs -j
 make -j
 ```

@@ -1,4 +1,5 @@
 // Copyright (C) 2022, 2023 - Tillitis AB
+// Copyright (C) 2023 - Daniel Lublin
 // SPDX-License-Identifier: GPL-2.0-only
 
 package main
@@ -41,7 +42,10 @@ func main() {
 	var devPath string
 	var speed int
 	var helpOnly bool
+	var requireTouch bool
+
 	pflag.CommandLine.SortFlags = false
+	pflag.BoolVar(&requireTouch, "touch", true, "Require touch before computing shared secret (ECDH).")
 	pflag.StringVar(&devPath, "port", "",
 		"Set serial port device `PATH`. If this is not passed, auto-detection will be attempted.")
 	pflag.IntVar(&speed, "speed", tkeyclient.SerialSpeed,
@@ -101,50 +105,62 @@ func main() {
 	goX25519 := ecdh.X25519()
 
 	hostPriv, err := goX25519.GenerateKey(rand.Reader)
-	panicErr(err)
-	hostPub := hostPriv.PublicKey()
-	fmt.Printf("hostPub: %0x\n", hostPub.Bytes())
-
-	var domain [78]byte
-	var userSecret [16]byte
-	// TODO these
-	copy(domain[:], []byte("age..."))
-	_, err = rand.Read(userSecret[:])
-	panicErr(err)
-
-	requireTouch := false
-
-	start := time.Now()
-	tkeyPubBytes, err := tkeyX25519.GetPubKey(domain, userSecret, requireTouch)
-	panicErr(err)
-	fmt.Printf("tkeyX25519.GetPubKey took %s\n", time.Since(start))
-	tkeyPub, err := goX25519.NewPublicKey(tkeyPubBytes)
-	panicErr(err)
-	fmt.Printf("tkeyPub: %0x\n", tkeyPub.Bytes())
-
-	hostShared, err := hostPriv.ECDH(tkeyPub)
-	panicErr(err)
-	fmt.Printf("hostShared: %0x\n", hostShared)
-
-	start = time.Now()
-	tkeyShared, err := tkeyX25519.ComputeShared(domain, userSecret, requireTouch, [32]byte(hostPub.Bytes()))
-	panicErr(err)
-	fmt.Printf("tkeyX25519.ComputeShared took %s\n", time.Since(start))
-	fmt.Printf("tkeyShared: %0x\n", tkeyShared)
-
-	if !bytes.Equal(hostShared, tkeyShared) {
-		fmt.Printf("👎\n")
+	if err != nil {
+		le.Printf("host GenerateKey failed: %s\n", err)
 		exit(1)
 	}
 
-	fmt.Printf("👍\n")
-	exit(0)
-}
+	hostPub := hostPriv.PublicKey()
+	fmt.Printf("host pub: %0x\n", hostPub.Bytes())
 
-func panicErr(err error) {
-	if err != nil {
-		panic(err)
+	domain := "age..."
+	var userSecret [tkeyx25519.UserSecretSize]byte
+	if _, err = rand.Read(userSecret[:]); err != nil {
+		le.Printf("rand.Read failed: %s\n", err)
+		exit(1)
 	}
+
+	start := time.Now()
+	tkeyPubBytes, err := tkeyX25519.GetPubKey(domain, userSecret, requireTouch)
+	fmt.Printf("tkey GetPubKey took %s\n", time.Since(start))
+	if err != nil {
+		le.Printf("GetPubKey failed: %s\n", err)
+		exit(1)
+	}
+
+	tkeyPub, err := goX25519.NewPublicKey(tkeyPubBytes)
+	if err != nil {
+		le.Printf("NewPublicKey failed: %s\n", err)
+		exit(1)
+	}
+	fmt.Printf("tkey pub: %0x\n", tkeyPub.Bytes())
+
+	hostShared, err := hostPriv.ECDH(tkeyPub)
+	if err != nil {
+		le.Printf("host ECDH failed: %s\n", err)
+		exit(1)
+	}
+	fmt.Printf("host shared: %0x\n", hostShared)
+
+	if requireTouch {
+		fmt.Printf("tkey will flash when touch is required ...\n")
+	}
+	start = time.Now()
+	tkeyShared, err := tkeyX25519.DoECDH(domain, userSecret, requireTouch, [32]byte(hostPub.Bytes()))
+	fmt.Printf("tkey DoECDH took %s\n", time.Since(start))
+	if err != nil {
+		le.Printf("DoECDH failed: %s\n", err)
+		exit(1)
+	}
+	fmt.Printf("tkey shared: %0x\n", tkeyShared)
+
+	if !bytes.Equal(hostShared, tkeyShared) {
+		fmt.Printf("Nope 👎\n")
+		exit(1)
+	}
+
+	fmt.Printf("OK 👍\n")
+	exit(0)
 }
 
 func handleSignals(action func(), sig ...os.Signal) {

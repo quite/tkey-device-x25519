@@ -7,26 +7,26 @@ CC = clang
 
 INCLUDE=$(LIBDIR)/include
 
-# If you want libcommon's qemu_puts() et cetera to output something on our QEMU
-# debug port, remove -DNODEBUG below. Do this also in $(LIBDIR)/Makefile
+# If you want the qemu_*() functions to print stuff on the QEMU debug port, add
+# -DQEMU_DEBUG to these flags. Do this also in $(LIBDIR)/Makefile before
+# building there.
 CFLAGS = -target riscv32-unknown-none-elf -march=rv32iczmmul -mabi=ilp32 -mcmodel=medany \
    -static -std=gnu99 -O2 -ffast-math -fno-common -fno-builtin-printf \
    -fno-builtin-putchar -nostdlib -mno-relax -flto -g \
    -Wall -Werror=implicit-function-declaration \
-   -I $(INCLUDE) -I $(LIBDIR)  \
-   -DNODEBUG
+   -I $(INCLUDE) -I $(LIBDIR)
 
-LDFLAGS=-T $(LIBDIR)/app.lds -L $(LIBDIR)/libcommon/ -lcommon -L $(LIBDIR)/libcrt0/ -lcrt0
+LDFLAGS=-T $(LIBDIR)/app.lds -L $(LIBDIR) -lcrt0 -lcommon
 
 
 .PHONY: all
-all: x25519/app.bin check-x25519-hash testx25519
+all: x25519/app.bin check-x25519-hash
 
 show-%-hash: %/app.bin
 	cd $$(dirname $^) && sha512sum app.bin
 
 check-x25519-hash: x25519/app.bin
-	cd x25519 && sha512sum -c app.bin.sha512
+	@(cd x25519; echo "file:$$(pwd)/app.bin hash:$$(sha512sum app.bin | cut -c1-16)… expected:$$(cut -c1-16 <app.bin.sha512)…"; sha512sum -cw app.bin.sha512)
 
 x25519/app.bin: x25519/app.elf
 	$(OBJCOPY) --input-target=elf32-littleriscv --output-target=binary $^ $@
@@ -45,7 +45,7 @@ testx25519: x25519/app.bin
 
 .PHONY: clean
 clean:
-	rm -f x25519/app.{elf,bin} $(X25519OBJS) testx25519
+	rm -f x25519/app.bin x25519/app.elf $(X25519OBJS) testx25519
 
 # Uses ../.clang-format
 FMTFILES=x25519/*.[ch]
@@ -60,4 +60,8 @@ checkfmt:
 
 .PHONY: podman
 podman:
-	podman run --rm --mount type=bind,source=$(CURDIR),target=/src --mount type=bind,source=$(LIBDIR),target=/tkey-libs -w /src -it ghcr.io/tillitis/tkey-builder:2 make -j
+	podman run --rm \
+	--mount type=bind,source=$(CURDIR),target=/src \
+	--mount type=bind,source=$(LIBDIR),target=/tkey-libs \
+	-w /src -it tkey-apps-builder \
+	make -j
