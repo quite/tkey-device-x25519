@@ -13,7 +13,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/tillitis/tkey-builder:2
+      image: ghcr.io/quite/tkey-apps-builder:1
     steps:
       - uses: actions/setup-go@v4
         with:
@@ -40,7 +40,7 @@ jobs:
       - name: Build tkey-libs
         run: |
           cd tkey-libs
-          make
+          make -j
 
       - name: make
         run: make LIBDIR=./tkey-libs
