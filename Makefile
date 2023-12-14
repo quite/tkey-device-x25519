@@ -57,11 +57,3 @@ fmt:
 .PHONY: checkfmt
 checkfmt:
 	clang-format --dry-run --ferror-limit=0 --Werror $(FMTFILES)
-
-.PHONY: podman
-podman:
-	podman run --rm \
-	--mount type=bind,source=$(CURDIR),target=/src \
-	--mount type=bind,source=$(LIBDIR),target=/tkey-libs \
-	-w /src -it tkey-apps-builder \
-	make -j

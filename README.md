@@ -19,23 +19,20 @@ Based on https://github.com/tillitis/tkey-device-signer
 
 # Building
 
-You can build the device app locally by first building the tkey-libs
-dependency in a sibling directory, like this:
+You can build the device app locally by running [build.sh](build.sh),
+or checking out what it does.
 
-```
-git -C .. clone https://github.com/tillitis/tkey-libs
-git -C ../tkey-libs checkout v0.0.2
-make -C ../tkey-libs -j
-make -j
-```
+For reproducibility the device app is typically built in a container,
+thus locking down the toolchain. Because if one single bit changes in
+the app.bin that will run on the TKey (for example due to a newer
+clang/llvm), then the identity (private/public key) of it will change.
 
-For reproducability we typically build the device app using a
-container image, thus locking down the toolchain. Because if one
-single bit changes in the app.bin that will run on the TKey (for
-example due to a newer llvm), then the identity (private/public key)
-of it will change. `x25519/app.bin.sha512` contains the currently
-expected hash of the device app binary.
+You can use [build-in-container.sh](build-in-container.sh) to do this
+using our own container image (see
+[Containerfile](https://github.com/quite/age-plugin-tkey/blob/main/Containerfile)
+in the age-plugin-tkey repo). This uses `podman` to run container
+(packages: `podman rootlesskit slirp4netns`).
 
-There are some
-[tools](https://github.com/quite/age-plugin-tkey/tree/main/contrib) in
-the age-plugin-tkey repository for doing that.
+The `x25519/app.bin.sha512` contains the expected hash of the device
+app binary when built using our container image which currently has
+clang 17.
