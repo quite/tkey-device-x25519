@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/quite/tkey-apps-builder:1
+      # https://github.com/actions/runner/issues/2033#issuecomment-1598547465
+      options: --user 1001
     steps:
       - uses: actions/setup-go@v4
         with:
@@ -31,11 +33,6 @@ jobs:
           repository: tillitis/tkey-libs
           ref: v0.0.2
           path: tkey-libs
-
-      - name: fix
-        # https://github.com/actions/runner-images/issues/6775
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Build tkey-libs
         run: |
