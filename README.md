@@ -5,7 +5,7 @@ protocol for Curve25519. X25519 is implemented using
 
 It is used by
 [age-plugin-tkey](https://github.com/quite/age-plugin-tkey) which uses
-the Go package [tkeyx25519](https://github.com/quite/tkeyx255190) to
+the Go package [tkeyx25519](https://github.com/quite/tkeyx25519) to
 communicate with this device app running on the TKey. But this can of
 course also be used by other parties wanting to do ECDH.
 
