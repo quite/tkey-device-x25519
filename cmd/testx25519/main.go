@@ -42,10 +42,10 @@ func main() {
 	var devPath string
 	var speed int
 	var helpOnly bool
-	var requireTouch bool
+	var noTouchFlag bool
 
 	pflag.CommandLine.SortFlags = false
-	pflag.BoolVar(&requireTouch, "touch", true, "Require touch before computing shared secret (ECDH).")
+	pflag.BoolVar(&noTouchFlag, "no-touch", false, "Do NOT require touch before computing shared secret (ECDH).")
 	pflag.StringVar(&devPath, "port", "",
 		"Set serial port device `PATH`. If this is not passed, auto-detection will be attempted.")
 	pflag.IntVar(&speed, "speed", tkeyclient.SerialSpeed,
@@ -121,7 +121,7 @@ func main() {
 	}
 
 	start := time.Now()
-	tkeyPubBytes, err := tkeyX25519.GetPubKey(domain, userSecret, requireTouch)
+	tkeyPubBytes, err := tkeyX25519.GetPubKey(domain, userSecret, noTouchFlag == false)
 	fmt.Printf("tkey GetPubKey took %s\n", time.Since(start))
 	if err != nil {
 		le.Printf("GetPubKey failed: %s\n", err)
@@ -142,11 +142,11 @@ func main() {
 	}
 	fmt.Printf("host shared: %0x\n", hostShared)
 
-	if requireTouch {
+	if noTouchFlag == false {
 		fmt.Printf("tkey will flash when touch is required ...\n")
 	}
 	start = time.Now()
-	tkeyShared, err := tkeyX25519.DoECDH(domain, userSecret, requireTouch, [32]byte(hostPub.Bytes()))
+	tkeyShared, err := tkeyX25519.DoECDH(domain, userSecret, noTouchFlag == false, [32]byte(hostPub.Bytes()))
 	fmt.Printf("tkey DoECDH took %s\n", time.Since(start))
 	if err != nil {
 		le.Printf("DoECDH failed: %s\n", err)
