@@ -3,7 +3,7 @@ set -eu
 
 clang --version
 
-LIBS="v0.0.2"
+LIBS="v0.1.0"
 LIBSD=../tkey-libs
 
 if [[ ! -e $LIBSD ]]; then
