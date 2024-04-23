@@ -25,7 +25,7 @@ all: x25519/app.bin check-x25519-hash
 show-%-hash: %/app.bin
 	cd $$(dirname $^) && sha512sum app.bin
 
-check-x25519-hash: x25519/app.bin
+check-x25519-hash:
 	@(cd x25519; echo "file:$$(pwd)/app.bin hash:$$(sha512sum app.bin | cut -c1-16)… expected:$$(cut -c1-16 <app.bin.sha512)…"; sha512sum -cw app.bin.sha512)
 
 x25519/app.bin: x25519/app.elf

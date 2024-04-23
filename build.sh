@@ -15,4 +15,4 @@ fi
 make -C $LIBSD -j
 
 make clean
-make -j
+make
