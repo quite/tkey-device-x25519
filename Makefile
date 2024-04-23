@@ -39,7 +39,7 @@ $(X25519OBJS): x25519/app_proto.h
 
 # .PHONY to let go-build handle deps and rebuilds
 .PHONY: testx25519
-testx25519: x25519/app.bin
+testx25519:
 	cp -af x25519/app.bin ./cmd/testx25519/
 	go build ./cmd/testx25519
 
