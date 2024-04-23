@@ -146,7 +146,7 @@ int main(void)
 			continue;
 		}
 
-		read(cmd, hdr.len);
+		read(cmd, CMDLEN_MAXBYTES, hdr.len);
 
 		if (hdr.endpoint == DST_FW) {
 			appreply_nok(hdr);
