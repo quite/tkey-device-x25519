@@ -1,3 +1,9 @@
+# v0.0.3
+
+Bump go dependencies only.
+
+Does *not* change the current expected device app hash.
+
 # v0.0.2
 
 Use tkey-libs v0.1.1.
